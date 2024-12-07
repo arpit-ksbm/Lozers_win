@@ -1,45 +1,30 @@
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
-const matchSchema = new mongoose.Schema({
+const matchSchema = new Schema({
     matchId: {
-        type: String,
+        type: Number,
         required: true,
         unique: true,
     },
+    title: String,
+    shortTitle: String,
     teamA: {
-        type: String,
-        required: true,
+        name: String,
+        shortName: String,
+        logo: String,
     },
     teamB: {
-        type: String,
-        required: true,
+        name: String,
+        shortName: String,
+        logo: String,
     },
-    startTime: {
-        type: Date,
-        required: true,
-    },
-    endTime: {
-        type: Date,
-    },
-    status: {
-        type: String,
-        enum: ['Upcoming', 'Live', 'Completed'],
-        default: 'Upcoming',
-    },
-    matchType: {
-        type: String,
-        enum: ['Test', 'ODI', 'T20'],
-    },
+    startTime: Date,
     venue: {
-        type: String,
+        name: String,
+        location: String,
     },
-    matchResults: {
-        type: Object,  // For storing result data like scores, wickets, etc.
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
-});
+    status: String,
+}, { timestamps: true });
 
 module.exports = mongoose.model('Match', matchSchema);

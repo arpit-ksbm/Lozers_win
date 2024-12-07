@@ -3,13 +3,30 @@ const { Schema } = mongoose;
 
 const contestSchema = new Schema({
     matchId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Match', 
+        type: Number,
         required: true,
     },
-    contestType: {
+    matchDetails: {
+        title: String,
+        shortTitle: String,
+        teamA: {
+            name: String,
+            shortName: String,
+            logoUrl: String,
+        },
+        teamB: {
+            name: String,
+            shortName: String,
+            logoUrl: String,
+        },
+        startTime: Date,
+        venue: {
+            name: String,
+            location: String,
+        },
+    },
+    teamName: {
         type: String,
-        enum: ['public', 'private'], 
         required: true,
     },
     entryFee: {
@@ -24,20 +41,6 @@ const contestSchema = new Schema({
         type: Number,
         required: true,
     },
-    joinedParticipants: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // Assuming user schema is defined
-    }],
-    winners: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // Assuming user schema is defined
-    }],
-    prizeDistribution: {
-        type: Map,
-        of: Number,  // Example: { "1": 500, "2": 300, "3": 200 } where the key is the rank and value is prize
-    },
-}, { timestamps: true }); // Automatically adds createdAt and updatedAt
+}, { timestamps: true });
 
-const Contest = mongoose.model('Contest', contestSchema);
-
-module.exports = Contest;
+module.exports = mongoose.model('Contest', contestSchema);

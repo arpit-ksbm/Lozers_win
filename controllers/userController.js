@@ -3,6 +3,9 @@ const configureMulter = require('../configureMulter');
 const User = require('../models/userModel');
 const crypto = require('crypto');
 const multer = require("multer");
+require('dotenv').config();
+const jwt = require('jsonwebtoken');
+const Razorpay = require('razorpay');
 
 const uploadUserImage = configureMulter("uploads/userImage/", [
     { name: "profileImage", maxCount: 1 },
@@ -53,10 +56,14 @@ exports.userLogin = async function (req, res) {
             await user.save();
         }
 
+        // Generate JWT token (this will be sent after OTP verification)
+        const token = jwt.sign({ userId: user._id }, process.env.JWT , { expiresIn: '1h' });
+
         res.status(200).json({
             success: true,
             message: "OTP generated successfully",
-            otp:user.otp,
+            otp: user.otp,
+            token: token, // Send token to the client
         });
 
     } catch (error) {
@@ -266,3 +273,37 @@ exports.updatePhoneNumber = async function(req, res) {
         });
     }
 };
+
+exports.createRazorpayOrder = async function (req, res) {
+    try {
+      const { amount } = req.body;
+  
+      if (!amount) {
+        return res.status(200).send({ status: false, message: "amount field is required", })
+      }
+  
+      console.log("fdsklajfdklsjfdkldsj")
+  
+      var instance = new Razorpay({
+        key_id: 'rzp_test_7FcETDDAqUcnFu',
+        key_secret: 'utSY0U8YmaNjuvEmJ7HBP1XA'
+      });
+  
+      const response = await instance.orders.create({
+        "amount": amount * 100,
+        "currency": "INR",
+      })
+  
+      console.log(response, "check responseee")
+  
+      if (response?.status == 'created') {
+        return res.status(200).json({ status: true, data: response })
+      }
+  
+      return res.status(200).json({ status: falseeeee, message: "Order not created", })
+    } catch (error) {
+      console.log(error, "errrorrrrrrrrrr")
+      // If an error occurs, send an error response
+      return res.status(500).json({ status: false, message: error });
+    }
+  }
