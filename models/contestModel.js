@@ -41,6 +41,10 @@ const contestSchema = new Schema({
         type: Number,
         required: true,
     },
+    participants: [{
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        rank: { type: Number } // Corrected type
+    }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Contest', contestSchema);

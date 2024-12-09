@@ -404,19 +404,19 @@ exports.createUserTeam = async (req, res) => {
         }
 
         // Verify players exist in the database for the given match
-        const validPlayers = await Player.find({
-            match_id: matchId,
-            player_id: { $in: players },
-        });
+        // const validPlayers = await Player.find({
+        //     match_id: matchId,
+        //     player_id: { $in: players },
+        // });
 
-        if (validPlayers.length !== players.length) {
-            return res.status(400).json({
-                success: false,
-                message: "Some selected players are invalid or not part of the match.",
-            });
-        }
+        // if (validPlayers.length !== players.length) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         message: "Some selected players are invalid or not part of the match.",
+        //     });
+        // }
 
-        // Save user's team
+        // Save user's team (no check for existing team, allowing multiple teams per contest)
         const team = new UserTeam({
             userId,
             matchId,
@@ -440,8 +440,6 @@ exports.createUserTeam = async (req, res) => {
         });
     }
 };
-
-
 
 exports.createRazorpayOrder = async function (req, res) {
     try {
@@ -476,3 +474,47 @@ exports.createRazorpayOrder = async function (req, res) {
       return res.status(500).json({ status: false, message: error });
     }
 }
+
+exports.joinContest = async function(req, res) {
+    try {
+        const { matchId, contestId, userId } = req.body;
+
+        // Validate request
+        if (!matchId || !contestId || !userId) {
+            return res.status(400).json({ message: 'matchId, contestId, and userId are required.' });
+        }
+
+        // Fetch the contest
+        const contest = await Contest.findById(contestId);
+
+        if (!contest) {
+            return res.status(404).json({ message: 'Contest not found.' });
+        }
+
+        // Check if contest is full
+        if (contest.participants.length >= contest.maxParticipants) {
+            return res.status(400).json({ message: 'Contest is full. You cannot join this contest.' });
+        }
+
+        // Check if user is already a participant
+        const isAlreadyParticipant = contest.participants.some(
+            (participant) => participant.userId.toString() === userId
+        );
+
+        if (isAlreadyParticipant) {
+            return res.status(400).json({ message: 'You have already joined this contest.' });
+        }
+
+        // Add the user to the contest's participants
+        contest.participants.push({ userId });
+
+        // Save the updated contest
+        await contest.save();
+
+        return res.status(200).json({ message: 'Successfully joined the contest.', contest });
+    } catch (error) {
+        console.error('Error in joinContest API:', error);
+        return res.status(500).json({ message: 'An error occurred while joining the contest.', error: error.message });
+    }
+};
+
