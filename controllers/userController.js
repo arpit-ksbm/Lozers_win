@@ -6,6 +6,11 @@ const multer = require("multer");
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const Razorpay = require('razorpay');
+const Contest = require('../models/contestModel')
+const axios = require("axios");
+const Match = require("../models/matchModel");
+const Player = require("../models/playersModel");
+const UserTeam = require("../models/userTeamModel");
 
 const uploadUserImage = configureMulter("uploads/userImage/", [
     { name: "profileImage", maxCount: 1 },
@@ -57,13 +62,12 @@ exports.userLogin = async function (req, res) {
         }
 
         // Generate JWT token (this will be sent after OTP verification)
-        const token = jwt.sign({ userId: user._id }, process.env.JWT , { expiresIn: '1h' });
+        // const token = jwt.sign({ userId: user._id }, process.env.JWT , { expiresIn: '1h' });
 
         res.status(200).json({
             success: true,
             message: "OTP generated successfully",
             otp: user.otp,
-            token: token, // Send token to the client
         });
 
     } catch (error) {
@@ -128,10 +132,13 @@ exports.verifyOtp = async function (req, res) {
         user.otpExpiry = null; // Clear OTP expiry time
         await user.save();
 
+        const token = jwt.sign({ userId: user._id }, process.env.JWT , { expiresIn: '1h' });
+
         res.status(200).json({
             success: true,
             message: "OTP verified successfully",
             user,
+            token: token
         });
 
     } catch (error) {
@@ -274,6 +281,168 @@ exports.updatePhoneNumber = async function(req, res) {
     }
 };
 
+exports.getAllContestByMatchId = async function (req, res) {
+    try {
+        const { matchId } = req.body;
+
+        // Check if matchId is provided
+        if (!matchId) {
+            return res.status(400).json({
+                success: false,
+                message: "Match ID is required"
+            });
+        }
+
+        // Fetch all contests from the database
+        const contests = await Contest.find({ matchId });
+
+        // If no contests are found
+        if (!contests || contests.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No contests found for the given Match ID."
+            });
+        }
+
+        // Return all contests
+        return res.status(200).json({
+            success: true,
+            message: "Contests fetched successfully.",
+            contests
+        });
+    } catch (error) {
+        console.error("Error fetching contests:", error.message);
+
+        // Send error response
+        return res.status(500).json({
+            success: false,
+            message: "An error occurred while fetching contests.",
+            error: error.message
+        });
+    }
+};
+
+exports.fetchPlayersByMatch = async (req, res) => {
+    try {
+        const { matchId } = req.body;
+
+        if (!matchId) {
+            return res.status(400).json({
+                success: false,
+                message: "Match ID is required.",
+            });
+        }
+
+        // Fetch data from Entitysport API
+        const { data } = await axios.get(
+            `https://rest.entitysport.com/v2/matches/${matchId}/squads/?token=ec471071441bb2ac538a0ff901abd249`
+        );
+
+        if (data.status === "ok" && data.response) {
+            const { teama, teamb } = data.response;
+
+            // Combine both teams' players
+            const allPlayers = [
+                ...teama.squads.map(player => ({
+                    player_id: player.player_id,
+                    name: player.name,
+                    role: player.role,
+                    playing11: player.playing11 === "true",
+                    team_id: teama.team_id,
+                    match_id: matchId,
+                })),
+                ...teamb.squads.map(player => ({
+                    player_id: player.player_id,
+                    name: player.name,
+                    role: player.role,
+                    playing11: player.playing11 === "true",
+                    team_id: teamb.team_id,
+                    match_id: matchId,
+                })),
+            ];
+
+            // Save players to the database
+            await Player.insertMany(allPlayers, { ordered: false });
+
+            return res.status(200).json({
+                success: true,
+                message: "Players fetched and saved successfully.",
+                players: allPlayers,
+            });
+        } else {
+            return res.status(404).json({
+                success: false,
+                message: "No player data found for the given match.",
+            });
+        }
+    } catch (error) {
+        console.error("Error fetching players:", error.message);
+        return res.status(500).json({
+            success: false,
+            message: "An error occurred while fetching players.",
+        });
+    }
+};
+
+exports.createUserTeam = async (req, res) => {
+    try {
+        const { userId, matchId, contestId, players } = req.body;
+
+        // Validate inputs
+        if (!userId || !matchId || !contestId || !players || players.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "User ID, Match ID, Contest ID, and Players are required.",
+            });
+        }
+
+        if (players.length > 11) {
+            return res.status(400).json({
+                success: false,
+                message: "You can select a maximum of 11 players only.",
+            });
+        }
+
+        // Verify players exist in the database for the given match
+        const validPlayers = await Player.find({
+            match_id: matchId,
+            player_id: { $in: players },
+        });
+
+        if (validPlayers.length !== players.length) {
+            return res.status(400).json({
+                success: false,
+                message: "Some selected players are invalid or not part of the match.",
+            });
+        }
+
+        // Save user's team
+        const team = new UserTeam({
+            userId,
+            matchId,
+            contestId,
+            players,
+        });
+
+        await team.save();
+
+        return res.status(201).json({
+            success: true,
+            message: "User team created successfully.",
+            team,
+        });
+    } catch (error) {
+        console.error("Error creating user team:", error.message);
+        return res.status(500).json({
+            success: false,
+            message: "An error occurred while creating the team.",
+            error: error.message,
+        });
+    }
+};
+
+
+
 exports.createRazorpayOrder = async function (req, res) {
     try {
       const { amount } = req.body;
@@ -306,4 +475,4 @@ exports.createRazorpayOrder = async function (req, res) {
       // If an error occurs, send an error response
       return res.status(500).json({ status: false, message: error });
     }
-  }
+}

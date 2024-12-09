@@ -25,7 +25,7 @@ const contestSchema = new Schema({
             location: String,
         },
     },
-    teamName: {
+    contestName: {
         type: String,
         required: true,
     },

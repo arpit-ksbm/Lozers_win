@@ -3,7 +3,7 @@ const Contest = require('../models/contestModel')
 const Match = require('../models/matchModel')
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { fetchMatchesFromAPI } = require('../services/matchServices');
+const { fetchMatchesFromAPI } = require('../services/matchService');
 const User = require('../models/userModel');
 
 exports.adminRegister = async function (req, res) {
@@ -91,7 +91,7 @@ exports.adminLogin = async function(req, res) {
         // Generate JWT token for the admin
         const token = jwt.sign(
             { id: admin._id, email: admin.email }, 
-            'your_jwt_secret_key',
+            process.env.JWT,
             { expiresIn: '1h' }
         );
 
@@ -112,73 +112,45 @@ exports.adminLogin = async function(req, res) {
 };
 
 exports.createContest = async (req, res) => {
-    const { matchId, teamName, entryFee, prizePool, maxParticipants } = req.body;
+    const { matchId, contestName, entryFee, prizePool, maxParticipants } = req.body;
 
     try {
         // Step 1: Validate request body
-        if (!matchId || !teamName || !entryFee || !prizePool || !maxParticipants) {
+        if (!matchId || !contestName || !entryFee || !prizePool || !maxParticipants) {
             return res.status(400).json({
                 success: false,
-                message: "All fields are required.",
+                message: "All fields matchId, contestName, entryFee, prizePool, maxParticipants are required.",
             });
         }
 
-        // Step 2: Fetch match details from cache or API
-        let match = await Match.findOne({ matchId });
+        // Step 2: Check if the match exists
+        const match = await Match.findOne({ match_id: matchId });
+
         if (!match) {
-            const matches = await fetchMatchesFromAPI(); // Fetch live matches
-            match = matches.find((m) => m.match_id === parseInt(matchId));
-            if (!match) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Match not found in database or API.",
-                });
-            }
-
-            // Cache match locally (if not already cached)
-            match = await Match.create({
-                matchId: match.match_id,
-                title: match.title,
-                shortTitle: match.short_title,
-                teamA: {
-                    name: match.teama?.name || "",
-                    shortName: match.teama?.short_name || "",
-                    logoUrl: match.teama?.logo_url || "",
-                },
-                teamB: {
-                    name: match.teamb?.name || "",
-                    shortName: match.teamb?.short_name || "",
-                    logoUrl: match.teamb?.logo_url || "",
-                },
-                startTime: match.date_start,
-                venue: {
-                    name: match.venue?.name || "",
-                    location: match.venue?.location || "",
-                },
-                status: match.status_str,
+            return res.status(404).json({
+                success: false,
+                message: "Match not found for the given matchId.",
             });
         }
 
-        // Step 3: Create Contest
+        // Step 4: Create Contest
         const newContest = new Contest({
             matchId,
             matchDetails: {
                 title: match.title,
-                shortTitle: match.shortTitle || match.short_title,
                 teamA: {
-                    name: match.teamA?.name || match.teama?.name,
-                    shortName: match.teamA?.shortName || match.teama?.short_name,
-                    logoUrl: match.teamA?.logoUrl || match.teama?.logo_url,
+                    name: match.teama?.name,
                 },
                 teamB: {
-                    name: match.teamB?.name || match.teamb?.name,
-                    shortName: match.teamB?.shortName || match.teamb?.short_name,
-                    logoUrl: match.teamB?.logoUrl || match.teamb?.logo_url,
+                    name: match.teamb?.name,
                 },
-                startTime: match.startTime || match.date_start,
-                venue: match.venue,
+                startTime: match.date_start,
+                venue: {
+                    name: match.venue?.name,
+                    location: match.venue?.location
+                }
             },
-            teamName,
+            contestName,
             entryFee,
             prizePool,
             maxParticipants,
@@ -186,7 +158,7 @@ exports.createContest = async (req, res) => {
 
         await newContest.save();
 
-        // Step 4: Send response
+        // Step 5: Send response
         return res.status(201).json({
             success: true,
             message: "Contest created successfully.",
@@ -194,16 +166,20 @@ exports.createContest = async (req, res) => {
         });
     } catch (error) {
         console.error("Error creating contest:", error.message);
+
+        // Send error response
         return res.status(500).json({
             success: false,
-            message: "Error while creating contest.",
+            message: "An error occurred while creating the contest.",
+            error: error.message,
         });
     }
 };
 
+
 exports.editContest = async function (req, res) {
     const { _id } = req.params;
-    const { teamName, entryFee, prizePool, maxParticipants } = req.body;
+    const { contestName, entryFee, prizePool, maxParticipants } = req.body;
 
     try {
         // Step 1: Validate contest ID
@@ -224,7 +200,7 @@ exports.editContest = async function (req, res) {
         }
 
         // Step 3: Update contest details
-        if (teamName) contest.teamName = teamName;
+        if (contestName) contest.contestName = contestName;
         if (entryFee) contest.entryFee = entryFee;
         if (prizePool) contest.prizePool = prizePool;
         if (maxParticipants) contest.maxParticipants = maxParticipants;

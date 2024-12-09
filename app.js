@@ -3,43 +3,32 @@ const app = express();
 
 const db = require("./config/db");
 const cors = require("cors");
-const userRoutes = require('./routes/userRoutes')
-const adminRoutes = require('./routes/adminRoutes')
-require('dotenv').config()
-// const { createServer } = require("http");
-// const { Server } = require("socket.io");
-// const { initializeSocketIO } = require("./socket/service");
-const { urlencoded } = require("body-parser");
-// const httpServer = createServer(app);
-// const io = new Server(httpServer, {
-//   cors: {
-//     origin: "*"
-//   }
-// });
+const userRoutes = require('./routes/userRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+require('dotenv').config();
+const cron = require('node-cron');
+
+// Connect to MongoDB
+db(); // This will now call fetchMatches after successful connection
 
 const PORT = process.env.PORT || 5001;
 
-// app.use(helmet());
-
-// Set Referrer-Policy to strict-origin-when-cross-origin
-app.use((req, res, next) => {
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  next();
-});
-
-app.use(express.static(__dirname + ""));
-app.use(express.json());// Parse incoming requests with JSON payloads
+// Middleware
+app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cors('*'));
-db();
 
-// // Define the API routes
-
-
-// initializeSocketIO(io)
+// Routes
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
 
+// Schedule cron job to fetch matches every hour
+cron.schedule("0 * * * *", () => {
+  console.log(`[${new Date().toISOString()}] Running scheduled match fetch...`);
+  fetchMatches();
+});
+
+// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
