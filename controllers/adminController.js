@@ -112,44 +112,29 @@ exports.adminLogin = async function(req, res) {
 };
 
 exports.createContest = async (req, res) => {
-    const { matchId, contestName, entryFee, prizePool, maxParticipants } = req.body;
+    const { contestName, entryFee, prizePool, maxParticipants } = req.body;
 
     try {
         // Step 1: Validate request body
-        if (!matchId || !contestName || !entryFee || !prizePool || !maxParticipants) {
+        if (!contestName || !entryFee || !prizePool || !maxParticipants) {
             return res.status(400).json({
                 success: false,
                 message: "All fields matchId, contestName, entryFee, prizePool, maxParticipants are required.",
             });
         }
 
-        // Step 2: Check if the match exists
-        const match = await Match.findOne({ match_id: matchId });
+        // // Step 2: Check if the match exists
+        // const match = await Match.findOne({ match_id: matchId });
 
-        if (!match) {
-            return res.status(404).json({
-                success: false,
-                message: "Match not found for the given matchId.",
-            });
-        }
+        // if (!match) {
+        //     return res.status(404).json({
+        //         success: false,
+        //         message: "Match not found for the given matchId.",
+        //     });
+        // }
 
         // Step 4: Create Contest
         const newContest = new Contest({
-            matchId,
-            matchDetails: {
-                title: match.title,
-                teamA: {
-                    name: match.teama?.name,
-                },
-                teamB: {
-                    name: match.teamb?.name,
-                },
-                startTime: match.date_start,
-                venue: {
-                    name: match.venue?.name,
-                    location: match.venue?.location
-                }
-            },
             contestName,
             entryFee,
             prizePool,
@@ -318,6 +303,55 @@ exports.getAllUsers = async function (req, res) {
         return res.status(500).json({
             success: false,
             message: "Error while fetching contests.",
+            error: error.message,
+        });
+    }
+};
+
+exports.updateUserStatus = async function (req, res) {
+    try {
+        const { _id } = req.params; // Extract user ID from route params
+        const { status } = req.body; // Extract status from the request body
+
+        // Validate input
+        if (!_id) {
+            return res.status(400).json({
+                success: false,
+                message: "User ID is required.",
+            });
+        }
+
+        if (!['Active', 'In-Active'].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid status. Valid statuses are 'Active' and 'In-Active'.",
+            });
+        }
+
+        // Find the user in the database
+        const user = await User.findById(_id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found.",
+            });
+        }
+
+        // Update the user's status
+        user.status = status;
+        const updatedUser = await user.save();
+
+        // Success response
+        return res.status(200).json({
+            success: true,
+            message: "User status updated successfully.",
+            data: updatedUser,
+        });
+    } catch (error) {
+        console.error("Error updating user status:", error);
+        return res.status(500).json({
+            success: false,
+            message: "An error occurred while updating user status.",
             error: error.message,
         });
     }

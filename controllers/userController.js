@@ -10,7 +10,7 @@ const Contest = require('../models/contestModel')
 const axios = require("axios");
 const Match = require("../models/matchModel");
 const Player = require("../models/playersModel");
-const UserTeam = require("../models/userTeamModel");
+const UserTeam = require("../models/teamModel");
 
 const uploadUserImage = configureMulter("uploads/userImage/", [
     { name: "profileImage", maxCount: 1 },
@@ -40,7 +40,7 @@ exports.userLogin = async function (req, res) {
         const otp = crypto.randomInt(100000, 999999);
         console.log(`Generated OTP: ${otp}`);
 
-        // Create expiration time for OTP (e.g., 5 minutes from now)
+        // Create expiration time for OTP
         const otpExpiry = new Date();
         otpExpiry.setMinutes(otpExpiry.getMinutes() + 5);
 
@@ -60,9 +60,6 @@ exports.userLogin = async function (req, res) {
             });
             await user.save();
         }
-
-        // Generate JWT token (this will be sent after OTP verification)
-        // const token = jwt.sign({ userId: user._id }, process.env.JWT , { expiresIn: '1h' });
 
         res.status(200).json({
             success: true,
@@ -128,8 +125,8 @@ exports.verifyOtp = async function (req, res) {
 
         // If OTP is valid and not expired, update the isVerify field
         user.isVerify = true;
-        user.otp = null; // Clear OTP after verification
-        user.otpExpiry = null; // Clear OTP expiry time
+        user.otp = null;
+        user.otpExpiry = null;
         await user.save();
 
         const token = jwt.sign({ userId: user._id }, process.env.JWT , { expiresIn: '1h' });
@@ -160,9 +157,8 @@ exports.updateUser = async function (req, res) {
         }
 
         try {
-            const { _id, name, dateOfBirth, gender, address } = req.body;
+            const { _id, name, userName, dateOfBirth, gender, address } = req.body;
 
-            // Check if the required fields are provided
             if (!_id) {
                 return res.status(400).json({
                     success: false,
@@ -170,7 +166,6 @@ exports.updateUser = async function (req, res) {
                 });
             }
 
-            // Find the user by ID
             let user = await User.findById(_id);
             if (!user) {
                 return res.status(404).json({
@@ -181,6 +176,7 @@ exports.updateUser = async function (req, res) {
 
             // Update other user details
             if (name) user.name = name;
+            if (userName) user.userName = userName;
             if (dateOfBirth) user.dateOfBirth = dateOfBirth;
             if (gender) user.gender = gender;
             if (address) user.address = address;
@@ -333,36 +329,63 @@ exports.fetchPlayersByMatch = async (req, res) => {
             });
         }
 
-        // Fetch data from Entitysport API
+        // Fetch data from EntitySport API
         const { data } = await axios.get(
-            `https://rest.entitysport.com/v2/matches/${matchId}/squads/?token=ec471071441bb2ac538a0ff901abd249`
+            `https://rest.entitysport.com/v2/matches/${matchId}/squads/?token=${process.env.ENTITYSPORT_API_TOKEN}`
         );
 
         if (data.status === "ok" && data.response) {
-            const { teama, teamb } = data.response;
+            const { teama, teamb, players } = data.response;
 
-            // Combine both teams' players
+            // Create a lookup map for detailed player data
+            const playerDetailsMap = {};
+            players.forEach(player => {
+                playerDetailsMap[player.pid] = {
+                    fantasy_player_rating: player.fantasy_player_rating || null,
+                    nationality: player.nationality || null,
+                    short_name: player.short_name || null
+                };
+            });
+
+            // Process squads for both teams
             const allPlayers = [
                 ...teama.squads.map(player => ({
                     player_id: player.player_id,
                     name: player.name,
                     role: player.role,
-                    playing11: player.playing11 === "true",
+                    fantasy_player_rating: playerDetailsMap[player.player_id]?.fantasy_player_rating || null,
+                    nationality: playerDetailsMap[player.player_id]?.nationality || null,
+                    short_name: playerDetailsMap[player.player_id]?.short_name || null,
+                    playing11: player.playing11,
+                    substitute: player.substitute,
                     team_id: teama.team_id,
-                    match_id: matchId,
                 })),
                 ...teamb.squads.map(player => ({
                     player_id: player.player_id,
                     name: player.name,
                     role: player.role,
-                    playing11: player.playing11 === "true",
+                    fantasy_player_rating: playerDetailsMap[player.player_id]?.fantasy_player_rating || null,
+                    nationality: playerDetailsMap[player.player_id]?.nationality || null,
+                    short_name: playerDetailsMap[player.player_id]?.short_name || null,
+                    playing11: player.playing11,
+                    substitute: player.substitute,
                     team_id: teamb.team_id,
-                    match_id: matchId,
                 })),
             ];
 
-            // Save players to the database
-            await Player.insertMany(allPlayers, { ordered: false });
+            // Bulk update/insert players
+            const bulkOps = allPlayers.map(player => ({
+                updateOne: {
+                    filter: { player_id: player.player_id },
+                    update: {
+                        $set: { ...player },
+                        $addToSet: { match_id: matchId },
+                    },
+                    upsert: true,
+                },
+            }));
+
+            await Player.bulkWrite(bulkOps);
 
             return res.status(200).json({
                 success: true,
@@ -377,6 +400,7 @@ exports.fetchPlayersByMatch = async (req, res) => {
         }
     } catch (error) {
         console.error("Error fetching players:", error.message);
+
         return res.status(500).json({
             success: false,
             message: "An error occurred while fetching players.",
@@ -386,60 +410,58 @@ exports.fetchPlayersByMatch = async (req, res) => {
 
 exports.createUserTeam = async (req, res) => {
     try {
-        const { userId, matchId, contestId, players } = req.body;
-
-        // Validate inputs
-        if (!userId || !matchId || !contestId || !players || players.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: "User ID, Match ID, Contest ID, and Players are required.",
-            });
+        const { matchId, players, captain, viceCaptain } = req.body;
+        const userId = req.user?.userId;
+    
+        // Validate the number of players
+        if (!Array.isArray(players) || players.length !== 11) {
+            return res.status(400).json({ error: 'You must select exactly 11 players' });
         }
 
-        if (players.length > 11) {
-            return res.status(400).json({
-                success: false,
-                message: "You can select a maximum of 11 players only.",
-            });
+        // Validate that the captain and vice-captain are part of the selected players
+        if (!players.includes(captain)) {
+            return res.status(400).json({ error: 'Captain must be one of the selected players' });
+        }
+        if (!players.includes(viceCaptain)) {
+            return res.status(400).json({ error: 'Vice-captain must be one of the selected players' });
         }
 
-        // Verify players exist in the database for the given match
-        // const validPlayers = await Player.find({
-        //     match_id: matchId,
-        //     player_id: { $in: players },
-        // });
+        // Fetch the user details
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
 
-        // if (validPlayers.length !== players.length) {
-        //     return res.status(400).json({
-        //         success: false,
-        //         message: "Some selected players are invalid or not part of the match.",
-        //     });
-        // }
+        // Generate the team name
+        const teamCount = await UserTeam.countDocuments({ userId, matchId });
+        const teamName = `${user.userName}(T${teamCount + 1})`;
 
-        // Save user's team (no check for existing team, allowing multiple teams per contest)
+        // Create the team
         const team = new UserTeam({
             userId,
             matchId,
-            contestId,
+            teamName,
             players,
+            captain,
+            viceCaptain,
         });
-
         await team.save();
 
-        return res.status(201).json({
-            success: true,
-            message: "User team created successfully.",
-            team,
-        });
+        res.status(201).json({ message: 'Team created successfully', team });
     } catch (error) {
-        console.error("Error creating user team:", error.message);
-        return res.status(500).json({
-            success: false,
-            message: "An error occurred while creating the team.",
-            error: error.message,
-        });
+        console.error('Error creating team:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 };
+
+exports.getUserTeam = async function (req, res) {
+    try {
+        const { matchId } = req.params;
+        const userId = req.user.userId;
+        const teams = await UserTeam.find({ userId, matchId });
+        res.json({ teams });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
 
 exports.createRazorpayOrder = async function (req, res) {
     try {
@@ -477,44 +499,50 @@ exports.createRazorpayOrder = async function (req, res) {
 
 exports.joinContest = async function(req, res) {
     try {
-        const { matchId, contestId, userId } = req.body;
-
-        // Validate request
-        if (!matchId || !contestId || !userId) {
-            return res.status(400).json({ message: 'matchId, contestId, and userId are required.' });
-        }
-
-        // Fetch the contest
-        const contest = await Contest.findById(contestId);
-
-        if (!contest) {
-            return res.status(404).json({ message: 'Contest not found.' });
-        }
-
-        // Check if contest is full
+        const { _id } = req.body;
+        const contest = await Contest.findById(_id);
+        if (!contest) return res.status(404).json({ error: 'Contest not found' });
+    
         if (contest.participants.length >= contest.maxParticipants) {
-            return res.status(400).json({ message: 'Contest is full. You cannot join this contest.' });
+            return res.status(400).json({ error: 'Contest is full' });
         }
-
-        // Check if user is already a participant
-        const isAlreadyParticipant = contest.participants.some(
-            (participant) => participant.userId.toString() === userId
-        );
-
-        if (isAlreadyParticipant) {
-            return res.status(400).json({ message: 'You have already joined this contest.' });
-        }
-
-        // Add the user to the contest's participants
-        contest.participants.push({ userId });
-
-        // Save the updated contest
+    
+        contest.participants.push(req.user.userId);
         await contest.save();
-
-        return res.status(200).json({ message: 'Successfully joined the contest.', contest });
+        res.json({ message: 'Joined contest successfully' });
     } catch (error) {
         console.error('Error in joinContest API:', error);
         return res.status(500).json({ message: 'An error occurred while joining the contest.', error: error.message });
     }
 };
 
+exports.getMatches = async function (req, res) {
+    try {
+        // Fetch all matches from the database
+        const matches = await Match.find();
+
+        // If no matches are found
+        if (matches.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No Match found.",
+            });
+        }
+
+        // Return all matches
+        return res.status(200).json({
+            success: true,
+            message: "Matches fetched successfully.",
+            matches,
+        });
+    } catch (error) {
+        console.error("Error fetching matches:", error.message);
+
+        // Send error response
+        return res.status(500).json({
+            success: false,
+            message: "Error while fetching matches.",
+            error: error.message,
+        });
+    }
+};

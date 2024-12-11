@@ -18,6 +18,9 @@ const userSchema = new mongoose.Schema({
   name: {
     type: String,
   },
+  userName: {
+    type: String,
+  },
   dateOfBirth: {
     type: String,
     default: '',
@@ -49,6 +52,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ["English", "Hindi"],
     default: "English",
+  },
+  walletBalance: {
+    type: Number,
+    default: 0
+  },
+  status: {
+    type: String,
+    enum: ["Active", "In-Active"],
+    default: "Active"
   },
   banned_status:{
     type: Boolean,

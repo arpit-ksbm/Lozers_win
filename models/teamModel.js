@@ -1,36 +1,12 @@
 const mongoose = require('mongoose');
 
-const teamSchema = new mongoose.Schema({
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-    contestId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Contest',
-        required: true,
-    },
-    players: [
-        {
-            playerId: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Player',  // A player model could be created separately
-            },
-            role: {
-                type: String,
-                enum: ['Batsman', 'Bowler', 'All-rounder', 'Wicketkeeper'],
-            },
-        },
-    ],
-    totalPoints: {
-        type: Number,
-        default: 0,
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
+const TeamSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    matchId: { type: String, required: true }, // Match ID
+    teamName: { type: String, required: true }, // Example: "arpit11(T1)"
+    players: [{ type: String, required: true }], // Array of player IDs or names
+    captain: { type: String, required: true }, // Player ID or name
+    viceCaptain: { type: String, required: true }, // Player ID or name
 });
 
-module.exports = mongoose.model('Team', teamSchema);
+module.exports = mongoose.model('Team', TeamSchema);
