@@ -112,7 +112,7 @@ exports.adminLogin = async function(req, res) {
 };
 
 exports.createContest = async (req, res) => {
-    const { contestName, entryFee, prizePool, maxParticipants } = req.body;
+    const { contestName, entryFee, prizePool, maxParticipants, discount } = req.body;
 
     try {
         // Step 1: Validate request body
@@ -139,6 +139,7 @@ exports.createContest = async (req, res) => {
             entryFee,
             prizePool,
             maxParticipants,
+            discount
         });
 
         await newContest.save();
@@ -160,7 +161,6 @@ exports.createContest = async (req, res) => {
         });
     }
 };
-
 
 exports.editContest = async function (req, res) {
     const { _id } = req.params;
@@ -188,7 +188,12 @@ exports.editContest = async function (req, res) {
         if (contestName) contest.contestName = contestName;
         if (entryFee) contest.entryFee = entryFee;
         if (prizePool) contest.prizePool = prizePool;
-        if (maxParticipants) contest.maxParticipants = maxParticipants;
+
+        // Update maxParticipants and leftParticipants
+        if (maxParticipants) {
+            contest.maxParticipants = maxParticipants;
+            contest.leftParticipants = maxParticipants - contest.participants.length;
+        }
 
         // Step 4: Save the updated contest
         await contest.save();
@@ -357,5 +362,38 @@ exports.updateUserStatus = async function (req, res) {
     }
 };
 
+exports.addRankAndWinningByContestId = async function (req, res) {
+    try {
+        const { contestId, rankAndWinning } = req.body;
+
+        if (!contestId) {
+            return res.status(400).json({ message: "Please provide contest ID" });
+        }
+        if (!rankAndWinning || !Array.isArray(rankAndWinning)) {
+            return res.status(400).json({ message: "Please provide rank and winning details in the correct format" });
+        }
+
+        // Find the contest
+        const contest = await Contest.findById(contestId);
+        if (!contest) {
+            return res.status(404).json({ message: "Contest not found" });
+        }
+
+        // Update the rank and winning details
+        contest.rankAndWinning = rankAndWinning;
+
+        // Save the updated contest
+        await contest.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Rank and winning details added successfully",
+            contest,
+        });
+    } catch (error) {
+        console.error("Error in addRankAndWinningByContestId API:", error.message);
+        return res.status(500).json({ message: "An error occurred while adding rank and winning details", error: error.message });
+    }
+};
 
 

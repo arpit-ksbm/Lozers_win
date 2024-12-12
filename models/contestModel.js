@@ -2,29 +2,6 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const contestSchema = new Schema({
-    // matchId: {
-    //     type: Number,
-    //     required: true,
-    // },
-    // matchDetails: {
-    //     title: String,
-    //     shortTitle: String,
-    //     teamA: {
-    //         name: String,
-    //         shortName: String,
-    //         logoUrl: String,
-    //     },
-    //     teamB: {
-    //         name: String,
-    //         shortName: String,
-    //         logoUrl: String,
-    //     },
-    //     startTime: Date,
-    //     venue: {
-    //         name: String,
-    //         location: String,
-    //     },
-    // },
     contestName: {
         type: String,
         required: true,
@@ -37,14 +14,35 @@ const contestSchema = new Schema({
         type: Number,
         required: true,
     },
+    discount: {
+        type: Number,
+        default: 0
+    },
+    Prize: {
+        type: String,
+        default: "5 Lakh"
+    },
     maxParticipants: {
         type: Number,
         required: true,
     },
+    leftParticipants: {
+        type: Number,
+        required: true,
+        default: function() {
+            return this.maxParticipants; // Initially, it will be equal to maxParticipants
+        }
+    },
     participants: [{
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        rank: { type: Number } // Corrected type
-    }]
+        rank: { type: Number }
+    }],
+    rankAndWinning: [ // New field
+        {
+            rankRange: { type: String, required: true }, // Example: "1", "2-4", "5-10"
+            winningAmount: { type: Number, required: true }, // Example: 10000
+        }
+    ]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Contest', contestSchema);

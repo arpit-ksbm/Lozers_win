@@ -14,4 +14,4 @@ const winningSchema = new Schema({
     
 }, { timestamps: true });
 
-module.exports = mongoose.model('Contest', contestSchema);
+module.exports = mongoose.model('Contest', winningSchema);

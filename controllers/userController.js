@@ -499,17 +499,23 @@ exports.createRazorpayOrder = async function (req, res) {
 
 exports.joinContest = async function(req, res) {
     try {
-        const { _id } = req.body; //teamid in array also in schema
+        const { _id } = req.body;
         const contest = await Contest.findById(_id);
         if (!contest) return res.status(404).json({ error: 'Contest not found' });
     
+        // Check if the contest is full
         if (contest.participants.length >= contest.maxParticipants) {
             return res.status(400).json({ error: 'Contest is full' });
         }
     
-        contest.participants.push(req.user.userId);
+        // Add the user to the participants array
+        contest.participants.push({ userId: req.user.userId });
+    
+        // Update leftParticipants: subtract 1 because one participant joined
+        contest.leftParticipants = contest.maxParticipants - contest.participants.length;
+
         await contest.save();
-        res.json({ message: 'Joined contest successfully' });
+        res.json({ message: 'Joined contest successfully', contest });
     } catch (error) {
         console.error('Error in joinContest API:', error);
         return res.status(500).json({ message: 'An error occurred while joining the contest.', error: error.message });
@@ -544,5 +550,69 @@ exports.getMatches = async function (req, res) {
             message: "Error while fetching matches.",
             error: error.message,
         });
+    }
+};
+
+exports.getRankAndWinning = async function (req, res) {
+    try {
+        const { contestId } = req.params;
+
+        // Validate input
+        if (!contestId) {
+            return res.status(400).json({ message: "Please provide contest ID" });
+        }
+
+        // Find the contest
+        const contest = await Contest.findById(contestId);
+        if (!contest) {
+            return res.status(404).json({ message: "Contest not found" });
+        }
+
+        // Fetch the rank and winning details
+        const rankAndWinning = contest.rankAndWinning;
+
+        return res.status(200).json({
+            success: true,
+            message: "Rank and winning details fetched successfully",
+            rankAndWinning,
+        });
+    } catch (error) {
+        console.error("Error in getRankAndWinningByContestId API:", error.message);
+        return res.status(500).json({ message: "An error occurred while fetching rank and winning details", error: error.message });
+    }
+};
+
+exports.getLeaderboard = async function (req, res) {
+    try {
+        const { contestId } = req.params;
+
+        if (!contestId) {
+            return res.status(400).json({ message: "Please provide contest ID" });
+        }
+
+        const contest = await Contest.findById(contestId).populate('participants.userId', 'name email'); // Populate user details if needed
+        if (!contest) {
+            return res.status(404).json({ message: "Contest not found" });
+        }
+
+        // Sort participants by rank
+        const sortedParticipants = contest.participants.sort((a, b) => a.rank - b.rank);
+
+        // Prepare the leaderboard data
+        const leaderboard = sortedParticipants.map(participant => ({
+            userId: participant.userId._id,
+            name: participant.userId.name, // Assumes the User model has a `name` field
+            email: participant.userId.email, // Assumes the User model has an `email` field
+            rank: participant.rank,
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: "Leaderboard fetched successfully",
+            leaderboard,
+        });
+    } catch (error) {
+        console.error("Error in getLeaderboard API:", error.message);
+        return res.status(500).json({ message: "An error occurred while fetching the leaderboard", error: error.message });
     }
 };

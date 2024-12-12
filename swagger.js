@@ -8,6 +8,7 @@ const doc = {
     description: 'API documentation for Lozers Win'
   },
   host: 'localhost:4012',
+  // host: '194.238.17.230:4012',
   schemes: ['http'], // Change to ['https'] if using HTTPS
 };
 

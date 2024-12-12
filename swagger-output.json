@@ -319,17 +319,11 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
             "description": "Forbidden"
-          },
-          "500": {
-            "description": "Internal Server Error"
           }
         }
       }
@@ -342,38 +336,14 @@
             "name": "authorization",
             "in": "header",
             "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "_id": {
-                  "example": "any"
-                }
-              }
-            }
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "400": {
-            "description": "Bad Request"
-          },
           "401": {
             "description": "Unauthorized"
           },
           "403": {
             "description": "Forbidden"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
           }
         }
       }
@@ -381,26 +351,9 @@
     "/api/user/create_razorpay_order": {
       "post": {
         "description": "",
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "schema": {
-              "type": "object",
-              "properties": {
-                "amount": {
-                  "example": "any"
-                }
-              }
-            }
-          }
-        ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "500": {
-            "description": "Internal Server Error"
+          "default": {
+            "description": ""
           }
         }
       }
@@ -409,14 +362,8 @@
       "get": {
         "description": "",
         "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "404": {
-            "description": "Not Found"
-          },
-          "500": {
-            "description": "Internal Server Error"
+          "default": {
+            "description": ""
           }
         }
       }
@@ -519,6 +466,42 @@
         }
       }
     },
+    "/api/user/get_rank_winning/{contestId}": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "contestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/user/get_leaderboard/{contestId}": {
+      "get": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "contestId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/api/admin/admin_register": {
       "post": {
         "description": "",
@@ -610,6 +593,9 @@
                   "example": "any"
                 },
                 "maxParticipants": {
+                  "example": "any"
+                },
+                "discount": {
                   "example": "any"
                 }
               }
@@ -735,22 +721,9 @@
     "/api/admin/get_all_contest": {
       "get": {
         "description": "",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "type": "string"
-          }
-        ],
         "responses": {
           "200": {
             "description": "OK"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
           },
           "404": {
             "description": "Not Found"
@@ -857,6 +830,42 @@
                   "example": "any"
                 },
                 "rejection_reason": {
+                  "example": "any"
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/admin/add_rank_winning": {
+      "post": {
+        "description": "",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "contestId": {
+                  "example": "any"
+                },
+                "rankAndWinning": {
                   "example": "any"
                 }
               }
