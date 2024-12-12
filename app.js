@@ -7,6 +7,8 @@ const userRoutes = require('./routes/userRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 require('dotenv').config();
 const cron = require('node-cron');
+const swaggerUi = require("swagger-ui-express");
+const swaggerDocument = require("./swagger-output.json");
 
 // Connect to MongoDB
 db(); // This will now call fetchMatches after successful connection
@@ -14,6 +16,7 @@ db(); // This will now call fetchMatches after successful connection
 const PORT = process.env.PORT || 5001;
 
 // Middleware
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cors('*'));

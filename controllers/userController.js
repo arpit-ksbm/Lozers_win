@@ -499,7 +499,7 @@ exports.createRazorpayOrder = async function (req, res) {
 
 exports.joinContest = async function(req, res) {
     try {
-        const { _id } = req.body;
+        const { _id } = req.body; //teamid in array also in schema
         const contest = await Contest.findById(_id);
         if (!contest) return res.status(404).json({ error: 'Contest not found' });
     
