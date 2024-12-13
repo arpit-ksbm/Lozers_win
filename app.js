@@ -5,6 +5,7 @@ const db = require("./config/db");
 const cors = require("cors");
 const userRoutes = require('./routes/userRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const kycRoutes = require('./routes/kycRoutes');
 require('dotenv').config();
 const cron = require('node-cron');
 const swaggerUi = require("swagger-ui-express");
@@ -24,6 +25,7 @@ app.use(cors('*'));
 // Routes
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/kyc", kycRoutes);
 
 // Schedule cron job to fetch matches every hour
 cron.schedule("0 * * * *", () => {

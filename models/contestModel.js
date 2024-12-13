@@ -2,6 +2,10 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const contestSchema = new Schema({
+    matchId:{
+        type: String,
+        required: true
+    },
     contestName: {
         type: String,
         required: true,

@@ -112,29 +112,30 @@ exports.adminLogin = async function(req, res) {
 };
 
 exports.createContest = async (req, res) => {
-    const { contestName, entryFee, prizePool, maxParticipants, discount } = req.body;
+    const {matchId, contestName, entryFee, prizePool, maxParticipants, discount } = req.body;
 
     try {
         // Step 1: Validate request body
-        if (!contestName || !entryFee || !prizePool || !maxParticipants) {
+        if (!matchId || !contestName || !entryFee || !prizePool || !maxParticipants) {
             return res.status(400).json({
                 success: false,
                 message: "All fields matchId, contestName, entryFee, prizePool, maxParticipants are required.",
             });
         }
 
-        // // Step 2: Check if the match exists
-        // const match = await Match.findOne({ match_id: matchId });
+        // Step 2: Check if the match exists
+        const match = await Match.findOne({ match_id: matchId });
 
-        // if (!match) {
-        //     return res.status(404).json({
-        //         success: false,
-        //         message: "Match not found for the given matchId.",
-        //     });
-        // }
+        if (!match) {
+            return res.status(404).json({
+                success: false,
+                message: "Match not found for the given matchId.",
+            });
+        }
 
         // Step 4: Create Contest
         const newContest = new Contest({
+            matchId,
             contestName,
             entryFee,
             prizePool,

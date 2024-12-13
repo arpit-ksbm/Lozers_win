@@ -279,7 +279,7 @@ exports.updatePhoneNumber = async function(req, res) {
 
 exports.getAllContestByMatchId = async function (req, res) {
     try {
-        const { matchId } = req.body;
+        const { matchId } = req.params;
 
         // Check if matchId is provided
         if (!matchId) {
@@ -320,7 +320,7 @@ exports.getAllContestByMatchId = async function (req, res) {
 
 exports.fetchPlayersByMatch = async (req, res) => {
     try {
-        const { matchId } = req.body;
+        const { matchId } = req.params;
 
         if (!matchId) {
             return res.status(400).json({
