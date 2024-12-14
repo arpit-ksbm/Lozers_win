@@ -21,5 +21,6 @@ router.post('/withdrawl_request', transactionController.createWithdrawalRequest)
 router.get('/transaction_history', transactionController.getTransactionHistory);
 router.get('/get_rank_winning/:contestId', userController.getRankAndWinning);
 router.get('/get_leaderboard/:contestId', userController.getLeaderboard);
+// router.get('/get_preview/:matchId', userController.previewUserTeam);
 
 module.exports = router;

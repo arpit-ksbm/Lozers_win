@@ -37,8 +37,8 @@ const fetchMatches = async () => {
         teamb: {
           team_id: match.teamb.team_id,
           name: match.teamb.name,
-          short_name: match.teama.short_name,
-          logo_url: match.teama.logo_url
+          short_name: match.teamb.short_name,
+          logo_url: match.teamb.logo_url
         },
         date_start: match.date_start,
         venue: {
