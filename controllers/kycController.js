@@ -19,7 +19,7 @@ exports.AadharOtp = async function (req, res) {
         const existingAadhar = await Aadhar.findOne({ userId, aadhaar_number });
         if (existingAadhar) {
             return res.status(200).json({
-                error: 'A PAN entry already exists for this userId and pan combination.',
+                error: 'A Aadhar entry already exists for this userId and aadhar combination.',
             });
         }
         

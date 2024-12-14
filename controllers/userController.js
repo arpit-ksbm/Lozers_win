@@ -11,6 +11,7 @@ const axios = require("axios");
 const Match = require("../models/matchModel");
 const Player = require("../models/playersModel");
 const UserTeam = require("../models/teamModel");
+const teamModel = require('../models/teamModel');
 
 const uploadUserImage = configureMulter("uploads/userImage/", [
     { name: "profileImage", maxCount: 1 },
@@ -590,26 +591,44 @@ exports.getLeaderboard = async function (req, res) {
             return res.status(400).json({ message: "Please provide contest ID" });
         }
 
-        const contest = await Contest.findById(contestId).populate('participants.userId', 'name email'); // Populate user details if needed
+        const contest = await Contest.findById(contestId)
+        
         if (!contest) {
             return res.status(404).json({ message: "Contest not found" });
         }
 
         // Sort participants by rank
-        const sortedParticipants = contest.participants.sort((a, b) => a.rank - b.rank);
+        const sortedParticipants = contest.participants
+
+        console.log(sortedParticipants, '0000');
+
+        const users = await Promise.all(
+            sortedParticipants.map(async (item) => {
+                const user = await teamModel.findOne(item.userId); // Assuming 'User' is your model
+                return {
+                    userId: user?._id,
+                    teamNmae: user?.teamName,
+                    rank: item?.rank,
+                };
+            })
+        );
+        
+        
+        
 
         // Prepare the leaderboard data
-        const leaderboard = sortedParticipants.map(participant => ({
-            userId: participant.userId._id,
-            name: participant.userId.name, // Assumes the User model has a `name` field
-            email: participant.userId.email, // Assumes the User model has an `email` field
-            rank: participant.rank,
-        }));
+        // const leaderboard = sortedParticipants.map(participant => ({
+        //     userId: participant.userId?._id,
+        //     // name: participant.userId.name, // Assumes the User model has a `name` field
+        //     // email: participant.userId.email, // Assumes the User model has an `email` field
+        //     // rank: participant.rank,
+        // }));
 
         return res.status(200).json({
             success: true,
             message: "Leaderboard fetched successfully",
-            leaderboard,
+            sortedParticipants,
+            users
         });
     } catch (error) {
         console.error("Error in getLeaderboard API:", error.message);
