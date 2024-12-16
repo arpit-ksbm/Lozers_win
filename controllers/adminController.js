@@ -5,6 +5,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { fetchMatchesFromAPI } = require('../services/matchService');
 const User = require('../models/userModel');
+const withdrawModel = require('../models/withdrawRequestModel');
+const transactionModel = require('../models/transactionModel');
 
 exports.adminRegister = async function (req, res) {
     try {
@@ -108,6 +110,40 @@ exports.adminLogin = async function (req, res) {
             message: "Login failed",
             error: error.message,
         });
+    }
+};
+
+exports.changePassword = async function (req, res) {
+    try {
+        const { currentPassword, newPassword, adminId } = req.body;
+
+        if (!currentPassword || !newPassword || !adminId) {
+            return Error(res, -1, 400, "Admin ID, current password, and new password must be provided");
+        }
+
+        const admin = await Admin.findById(adminId);
+        if (!admin) {
+            return res.status(404).json({ message: "Admin not found" });
+        }
+
+        if (newPassword.length < 6) {
+            return Error(res, -1, 400, "New password must be at least 6 characters long");
+        }
+
+        const isPasswordValid = await bcrypt.compare(currentPassword, admin.password);
+        if (!isPasswordValid) {
+            return res.status(400).json({ message: "Current password is incorrect" });
+        }
+
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+        admin.password = hashedNewPassword;
+        await admin.save();
+
+        return res.status(200).json({ message: "Password updated successfully" });
+    } catch (error) {
+        console.error("Error changing password:", error);
+        return res.status(500).json({ message: "An error occurred while changing the password" });
     }
 };
 
@@ -397,4 +433,34 @@ exports.addRankAndWinningByContestId = async function (req, res) {
     }
 };
 
+exports.adminDashboard = async function (req, res) {
+    try {
+        const users = await User.countDocuments();
+        const activeUser = await User.countDocuments({ status: "Active" });
+        const withdraws = await withdrawModel.find({status:"Approved"});
+        const transaction = await transactionModel.find();
+
+        // Calculate the total withdrawal amount
+        const totalWithdraw = withdraws.reduce((total, withdraw) => total + (withdraw.amount || 0), 0);
+        
+        // Calculate the total deposit amount
+        const totalDeposit = transaction.reduce((total, deposit) => total + (deposit.amount || 0), 0);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                users,
+                activeUser,
+                totalWithdraw,
+                totalDeposit
+            }
+        });
+    } catch (error) {
+        console.error("Error in adminDashboard:", error.message);
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
+    }
+};
 

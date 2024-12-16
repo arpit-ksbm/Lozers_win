@@ -71,7 +71,7 @@ exports.createWithdrawalRequest = async (req, res) => {
         const withdrawalRequest = new WithdrawalRequest({
             user_id,
             amount,
-            status: "pending",
+            status: "Pending",
         });
 
         await withdrawalRequest.save();
@@ -87,12 +87,42 @@ exports.createWithdrawalRequest = async (req, res) => {
     }
 };
 
+exports.getAllWithdrawRequest = async (req, res) => {
+    try {
+        const widrawRequests = await WithdrawalRequest.find({status:"Pending"}).populate('user_id')
+
+        if(!widrawRequests){
+            return res.status(200).json({message:"No withdraw request found"})
+        }
+
+        return res.status(200).json({message:"Withdraw request fetched successfully", data:widrawRequests})
+    } catch (error) {
+        console.error("Error Fetching withdrawal request:", error.message);
+        return res.status(500).json({ success: false, message: "Internal server error." });
+    }
+}
+
+exports.getAllWithdrawHistory = async (req, res) => {
+    try {
+        const widrawHistory = await WithdrawalRequest.find({status:"Approved"}).populate('user_id')
+
+        if(!widrawHistory){
+            return res.status(200).json({message:"No withdraw request found"})
+        }
+
+        return res.status(200).json({message:"Withdraw history fetched successfully", data:widrawHistory})
+    } catch (error) {
+        console.error("Error Fetching withdrawal history:", error.message);
+        return res.status(500).json({ success: false, message: "Internal server error." });
+    }
+}
+
 // Admin handles withdrawal request (approve or reject)
 exports.handleWithdrawalRequest = async (req, res) => {
     try {
         const { request_id, status, rejection_reason } = req.body;
 
-        if (!request_id || !status || (status === "rejected" && !rejection_reason)) {
+        if (!request_id || !status || (status === "Rejected" && !rejection_reason)) {
             return res.status(400).json({ success: false, message: "Invalid input." });
         }
 
@@ -103,23 +133,23 @@ exports.handleWithdrawalRequest = async (req, res) => {
         }
 
         // Check if the request is already processed
-        if (withdrawalRequest.status !== "pending") {
-            return res.status(400).json({ success: false, message: "This request has already been processed." });
-        }
+        // if (withdrawalRequest.status !== "pending") {
+        //     return res.status(400).json({ success: false, message: "This request has already been processed." });
+        // }
 
         // Handle approval or rejection
-        if (status === "approved") {
+        if (status === "Approved") {
             // Update user wallet balance
             const user = withdrawalRequest.user_id;
             user.walletBalance -= withdrawalRequest.amount; // Deduct amount from wallet balance
             await user.save();
 
             // Update withdrawal request status
-            withdrawalRequest.status = "approved";
+            withdrawalRequest.status = "Approved";
             withdrawalRequest.approved_date = Date.now();
-        } else if (status === "rejected") {
+        } else if (status === "Rejected") {
             // Update withdrawal request status and add rejection reason
-            withdrawalRequest.status = "rejected";
+            withdrawalRequest.status = "Rejected";
             withdrawalRequest.rejection_reason = rejection_reason;
         }
 
