@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController')
 const transactionController = require('../controllers/transactionControlller')
-const authenticateToken = require('../middleware/auth');
+const authenticateToken = require('../middleware/userAuth');
 
 
 router.post('/user_login_register', userController.userLogin);
@@ -12,6 +12,9 @@ router.post('/update_phone_no', authenticateToken,  userController.updatePhoneNu
 router.get('/get_contests_matchid/:matchId',  userController.getAllContestByMatchId);
 router.get('/get_players_by_matchid/:matchId',  userController.fetchPlayersByMatch);
 router.post('/create_team', authenticateToken, userController.createUserTeam);
+router.post('/add_remove_players', authenticateToken, userController.addOrRemoveOrSavePlayer);
+router.post('/get_team_preview', authenticateToken, userController.getTeamPreview);
+router.get('/get_all_team/:matchId', authenticateToken, userController.getAllTeams);
 router.get('/get_user_teams/:matchId', authenticateToken, userController.getUserTeam);
 router.post('/join_contest', authenticateToken, userController.joinContest);
 router.post('/create_razorpay_order', userController.createRazorpayOrder);

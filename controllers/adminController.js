@@ -58,7 +58,7 @@ exports.adminRegister = async function (req, res) {
     }
 };
 
-exports.adminLogin = async function(req, res) {
+exports.adminLogin = async function (req, res) {
     try {
         const { email, password } = req.body;
 
@@ -90,7 +90,7 @@ exports.adminLogin = async function(req, res) {
 
         // Generate JWT token for the admin
         const token = jwt.sign(
-            { id: admin._id, email: admin.email }, 
+            { id: admin._id, email: admin.email, role: "admin" }, // Include role in the token payload
             process.env.JWT,
             { expiresIn: '1h' }
         );

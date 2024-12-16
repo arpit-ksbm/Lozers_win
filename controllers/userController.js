@@ -11,6 +11,7 @@ const axios = require("axios");
 const Match = require("../models/matchModel");
 const Player = require("../models/playersModel");
 const UserTeam = require("../models/teamModel");
+const { v4: uuidv4 } = require('uuid');
 
 const uploadUserImage = configureMulter("uploads/userImage/", [
     { name: "profileImage", maxCount: 1 },
@@ -423,38 +424,23 @@ exports.fetchPlayersByMatch = async (req, res) => {
 
 exports.createUserTeam = async (req, res) => {
     try {
-        const { matchId, players, captain, viceCaptain } = req.body;
+        const { matchId } = req.body;
         const userId = req.user?.userId;
-    
-        // Validate the number of players
-        if (!Array.isArray(players) || players.length !== 11) {
-            return res.status(400).json({ error: 'You must select exactly 11 players' });
+
+        if (!matchId || !userId) {
+            return res.status(400).json({ error: 'matchId isrequired' });
         }
 
-        // Validate that the captain and vice-captain are part of the selected players
-        if (!players.includes(captain)) {
-            return res.status(400).json({ error: 'Captain must be one of the selected players' });
-        }
-        if (!players.includes(viceCaptain)) {
-            return res.status(400).json({ error: 'Vice-captain must be one of the selected players' });
-        }
+        const teamUniqueCode = uuidv4();
 
-        // Fetch the user details
-        const user = await User.findById(userId);
-        if (!user) return res.status(404).json({ error: 'User not found' });
-
-        // Generate the team name
-        const teamCount = await UserTeam.countDocuments({ userId, matchId });
-        const teamName = `${user.userName}(T${teamCount + 1})`;
+        // Log the generated code (for debugging purposes)
+        console.log('Generated teamUniqueCode:', teamUniqueCode);
 
         // Create the team
         const team = new UserTeam({
             userId,
             matchId,
-            teamName,
-            players,
-            captain,
-            viceCaptain,
+            teamUniqueCode,
         });
         await team.save();
 
@@ -462,6 +448,162 @@ exports.createUserTeam = async (req, res) => {
     } catch (error) {
         console.error('Error creating team:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+exports.addOrRemoveOrSavePlayer = async function (req, res) {
+    try {
+        const { teamUniqueCode, players, type, captain, viceCaptain } = req.body;
+
+        // Validate request body
+        if (!teamUniqueCode || !Array.isArray(players) || !type) {
+            return res.status(400).json({ message: "Invalid request data" });
+        }
+
+        // Find the team by unique code
+        const team = await UserTeam.findOne({ teamUniqueCode });
+        if (!team) {
+            return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Handle operations based on the type
+        switch (type.toLowerCase()) {
+            case "add":
+                // Add new players, avoiding duplicates
+                const uniquePlayersToAdd = players.filter(player => !team.players.includes(player));
+                if (team.players.length + uniquePlayersToAdd.length > 11) {
+                    return res.status(400).json({ message: "Cannot add players. Maximum of 11 players allowed." });
+                }
+                team.players = [...team.players, ...uniquePlayersToAdd];
+
+                // Set captain and vice-captain if provided
+                if (captain) {
+                    if (!team.players.includes(captain)) {
+                        return res.status(400).json({ message: "Captain must be a part of the players list." });
+                    }
+                    team.captain = captain;
+                }
+                if (viceCaptain) {
+                    if (!team.players.includes(viceCaptain)) {
+                        return res.status(400).json({ message: "Vice-captain must be a part of the players list." });
+                    }
+                    team.viceCaptain = viceCaptain;
+                }
+                break;
+
+            case "remove":
+                // Remove players if they exist
+                players.forEach(player => {
+                    const index = team.players.indexOf(player); // Find index of the player
+                    if (index !== -1) {
+                        team.players.splice(index, 1); // Remove player if found
+                    }
+                });
+
+                // Ensure captain and vice-captain are still valid
+                if (team.captain && !team.players.includes(team.captain)) {
+                    team.captain = null;
+                }
+                if (team.viceCaptain && !team.players.includes(team.viceCaptain)) {
+                    team.viceCaptain = null;
+                }
+                break;
+
+            case "save":
+                // Replace the current players list with the new one, ensuring max 11 players
+                if (players.length > 11) {
+                    return res.status(400).json({ message: "Cannot save players. Maximum of 11 players allowed." });
+                }
+
+                // Ensure that both captain and vice-captain are from the players list
+                if (captain && !players.includes(captain)) {
+                    return res.status(400).json({ message: "Captain must be a part of the players list." });
+                }
+                if (viceCaptain && !players.includes(viceCaptain)) {
+                    return res.status(400).json({ message: "Vice-captain must be a part of the players list." });
+                }
+
+                // Generate the team name only when saving
+                const user = await User.findById(req.user.userId); // Get user by userId (assumed from req.user.userId)
+                let teamName = '';
+                let teamCount = 0;
+
+                if (user && user.userName) {
+                    // If the user has a username, use it with a team number (T1, T2, etc.)
+                    // Check how many teams the user has already created for this match
+                    const existingTeams = await UserTeam.find({ matchId: team.matchId, userId: user._id });
+                    teamCount = existingTeams.length + 1; // Increment the team count for this user
+                    teamName = `${user.userName}_T${teamCount}`;
+                } else if (user && user.phoneNumber) {
+                    // If the user doesn't have a username, use the last 4 digits of the phone number
+                    const lastFourDigits = user.phoneNumber.slice(-4); // Get last 4 digits
+                    // Check how many teams the user has already created for this match
+                    const existingTeams = await UserTeam.find({ matchId: team.matchId, userId: user._id });
+                    teamCount = existingTeams.length + 1; // Increment the team count for this user
+                    teamName = `${lastFourDigits}(T${teamCount})`;
+                } else {
+                    // Fallback if neither username nor phoneNumber is available
+                    teamName = `Player_T${teamCount}`;
+                }
+
+                // Save the new team name
+                team.teamName = teamName;
+                team.players = players;
+                if (captain) team.captain = captain;
+                if (viceCaptain) team.viceCaptain = viceCaptain;
+
+                // Set isCompleted to true only if there are exactly 11 players
+                team.isCompleted = players.length === 11;
+                break;
+
+            default:
+                return res.status(400).json({ message: "Invalid operation type" });
+        }
+
+        // Save the updated team
+        await team.save();
+
+        return res.status(200).json({ message: "Team updated successfully", team });
+    } catch (error) {
+        console.error("Error updating team:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+exports.getTeamPreview = async function (req, res) {
+    try {
+        const { teamUniqueCode } = req.body;
+
+        if (!teamUniqueCode) {
+            return res.status(400).json({ message: "Please provide team unique code" });
+        }
+
+        // Find the team and populate players
+        const teamPreview = await UserTeam.findOne({ teamUniqueCode })
+            .populate('players');
+
+        if (!teamPreview) {
+            return res.status(404).json({ message: "Team not found" });
+        }
+
+        // Add isCaptain and isViceCaptain flags
+        const playersWithRoles = teamPreview.players.map(player => ({
+            ...player.toObject(), // Convert Mongoose document to plain object
+            isCaptain: player._id.toString() === teamPreview.captain?.toString(),
+            isViceCaptain: player._id.toString() === teamPreview.viceCaptain?.toString(),
+        }));
+
+        // Return the modified team preview
+        return res.status(200).json({
+            message: "Team preview fetched successfully",
+            teamPreview: {
+                ...teamPreview.toObject(),
+                players: playersWithRoles,
+            },
+        });
+    } catch (error) {
+        console.error("Error fetching team preview:", error);
+        return res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -477,6 +619,74 @@ exports.getUserTeam = async function (req, res) {
     } catch (error) {
         console.error("Error fetching teams:", error.message);
         res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getAllTeams = async function (req, res) {
+    try {
+        const { matchId } = req.params;
+
+        // Validate if matchId is provided
+        if (!matchId) {
+            return res.status(400).json({ message: "Match ID is required" });
+        }
+
+        // Find teams where isCompleted is true and matchId matches
+        const teams = await UserTeam.find({ isCompleted: true, matchId: matchId }).populate('players');
+
+        // Check if no teams are found
+        if (!teams || teams.length === 0) {
+            return res.status(404).json({ message: `No completed teams found for match ID: ${matchId}` });
+        }
+
+        // Initialize stats
+        const countryStats = {}; // To track players per country
+        const roleStats = { batsmen: 0, bowlers: 0, allRounders: 0, wicketKeepers: 0 }; // To track roles
+
+        // Loop through all teams
+        teams.forEach(team => {
+            team.players.forEach(player => {
+                const country = player.country || player.nationality || "Unknown";
+
+                // Update country stats
+                if (!countryStats[country]) {
+                    countryStats[country] = 1;
+                } else {
+                    countryStats[country]++;
+                }
+
+                // Update role stats
+                switch (player.role.toLowerCase()) {
+                    case "bat":
+                        roleStats.batsmen++;
+                        break;
+                    case "bowl":
+                        roleStats.bowlers++;
+                        break;
+                    case "all":
+                        roleStats.allRounders++;
+                        break;
+                    case "wk":
+                        roleStats.wicketKeepers++;
+                        break;
+                    default:
+                        break;
+                }
+            });
+        });
+
+        // Return the teams and the stats
+        return res.status(200).json({
+            message: "Completed teams fetched successfully",
+            teams,
+            stats: {
+                countryStats,
+                roleStats,
+            },
+        });
+    } catch (error) {
+        console.error("Error fetching completed teams:", error);
+        return res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -515,30 +725,76 @@ exports.createRazorpayOrder = async function (req, res) {
     }
 }
 
-exports.joinContest = async function(req, res) {
+exports.joinContest = async function (req, res) {
     try {
-        const { _id } = req.body;
-        const contest = await Contest.findById(_id);
-        if (!contest) return res.status(404).json({ error: 'Contest not found' });
-    
+        const { contestId, teamUniqueCodes, matchId } = req.body; // Include matchId
+
+        if (!contestId || !teamUniqueCodes || !Array.isArray(teamUniqueCodes) || teamUniqueCodes.length === 0 || !matchId) {
+            return res.status(400).json({ error: 'Contest ID, matchId, and at least one teamUniqueCode are required.' });
+        }
+
+        // Fetch the contest details by contestId and matchId
+        const contest = await Contest.findOne({ _id: contestId, matchId: matchId });
+        if (!contest) return res.status(404).json({ error: 'Contest not found for the specified match.' });
+
         // Check if the contest is full
         if (contest.participants.length >= contest.maxParticipants) {
-            return res.status(400).json({ error: 'Contest is full' });
+            return res.status(400).json({ error: 'Contest is full.' });
         }
-    
-        // Add the user to the participants array
-        contest.participants.push({ userId: req.user.userId });
-    
-        // Update leftParticipants: subtract 1 because one participant joined
+
+        // Fetch user wallet details (assuming a User model with a wallet field)
+        const user = await User.findById(req.user.userId);
+        if (!user) return res.status(404).json({ error: 'User not found.' });
+
+        // Calculate total cost for multiple teams
+        const totalCost = contest.entryFee * teamUniqueCodes.length;
+
+        // Check if the user has enough balance in their wallet
+        if (user.walletBalance < totalCost) {
+            return res.status(400).json({ error: 'Insufficient wallet balance.' });
+        }
+
+        // Check if the user has already joined the contest with any of the provided teams
+        const existingTeams = contest.participants.filter(
+            (participant) => participant.userId.toString() === req.user.userId
+        ).map(participant => participant.teamUniqueCode);
+
+        // Check for duplicates
+        const duplicateTeams = teamUniqueCodes.filter(teamCode => existingTeams.includes(teamCode));
+
+        if (duplicateTeams.length > 0) {
+            return res.status(400).json({ error: `You have already joined the contest with team(s): ${duplicateTeams.join(", ")}` });
+        }
+
+        // Deduct the wallet amount
+        user.walletBalance -= totalCost;
+        await user.save();
+
+        // Add the user's teams to the participants array
+        teamUniqueCodes.forEach((teamUniqueCode) => {
+            contest.participants.push({ userId: req.user.userId, teamUniqueCode });
+        });
+
+        // Update the number of participants left
         contest.leftParticipants = contest.maxParticipants - contest.participants.length;
 
         await contest.save();
-        res.json({ message: 'Joined contest successfully', contest });
+
+        res.json({ 
+            message: 'Joined contest successfully', 
+            contest, 
+            walletBalance: user.walletBalance, 
+            joinedTeams: teamUniqueCodes 
+        });
     } catch (error) {
         console.error('Error in joinContest API:', error);
-        return res.status(500).json({ message: 'An error occurred while joining the contest.', error: error.message });
+        return res.status(500).json({ 
+            message: 'An error occurred while joining the contest.', 
+            error: error.message 
+        });
     }
 };
+
 
 exports.getMatches = async function (req, res) {
     try {
