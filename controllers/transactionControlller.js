@@ -3,7 +3,6 @@ const Transaction = require("../models/transactionModel");
 const { v4: uuidv4 } = require("uuid"); // For generating unique transaction IDs
 const WithdrawalRequest = require("../models/withdrawRequestModel");
 
-// Add funds to wallet
 exports.addFundsToWallet = async (req, res) => {
     try {
         const { user_id, amount } = req.body;
@@ -47,7 +46,6 @@ exports.addFundsToWallet = async (req, res) => {
     }
 };
 
-// User requests a withdrawal
 exports.createWithdrawalRequest = async (req, res) => {
     try {
         const { user_id, amount } = req.body;
@@ -117,7 +115,6 @@ exports.getAllWithdrawHistory = async (req, res) => {
     }
 }
 
-// Admin handles withdrawal request (approve or reject)
 exports.handleWithdrawalRequest = async (req, res) => {
     try {
         const { request_id, status, rejection_reason } = req.body;
@@ -167,7 +164,6 @@ exports.handleWithdrawalRequest = async (req, res) => {
     }
 };
 
-// Get transaction history for a user
 exports.getTransactionHistory = async (req, res) => {
     try {
         const { user_id } = req.query;

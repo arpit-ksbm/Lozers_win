@@ -10,10 +10,11 @@ const APiKey = process.env.KYC_API_KEY;
 
 exports.AadharOtp = async function (req, res) {
     try {
-        const { aadhaar_number, userId } = req.body;
+        const { aadhaar_number } = req.body;
+        const userId = req.user?.userId;
 
-        if (!aadhaar_number || !userId) {
-            return res.status(400).json({ error: 'aadhaar_number and userId are required.' });
+        if (!aadhaar_number) {
+            return res.status(400).json({ error: 'aadhaar_number is required.' });
         }
 
         const existingAadhar = await Aadhar.findOne({ userId, aadhaar_number });
@@ -66,10 +67,11 @@ exports.AadharOtp = async function (req, res) {
 
 exports.verifyAadharOtp = async function (req, res) {
     try {
-        const { otp, userId } = req.body;
+        const { otp } = req.body;
+        const userId = req.user?.userId;
 
-        if (!otp || !userId) {
-            return res.status(400).json({ error: 'otp and userId are required.' });
+        if (!otp ) {
+            return res.status(400).json({ error: 'otp is required.' });
         }
 
         const aadharRecord = await Aadhar.findOne({ userId });
@@ -122,10 +124,11 @@ exports.verifyAadharOtp = async function (req, res) {
 
 exports.verifyPan = async function (req, res) {
     try {
-        const { userId, pan, name_as_per_pan, date_of_birth } = req.body;
+        const { pan, name_as_per_pan, date_of_birth } = req.body;
+        const userId = req.user?.userId;
 
-        if (!userId || !pan || !name_as_per_pan || !date_of_birth) {
-            return res.status(400).json({ error: 'userId, pan, name_as_per_pan, and date_of_birth are required.' });
+        if (!pan || !name_as_per_pan || !date_of_birth) {
+            return res.status(400).json({ error: 'pan, name_as_per_pan, and date_of_birth are required.' });
         }
 
         const existingPan = await Pan.findOne({ userId, pan });

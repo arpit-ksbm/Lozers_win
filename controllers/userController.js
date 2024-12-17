@@ -343,6 +343,18 @@ exports.fetchPlayersByMatch = async (req, res) => {
             });
         }
 
+        const matchDetails = await Match.findOne(
+            { match_id: matchId },
+            {
+                "teama.short_name": 1,
+                "teama.logo_url": 1,
+                "teamb.short_name": 1,
+                "teamb.logo_url": 1,
+                "short_title": 1,
+                _id: 0,
+            }
+        );
+
         // Fetch data from EntitySport API
         const { data } = await axios.get(
             `https://rest.entitysport.com/v2/matches/${matchId}/squads/?token=${process.env.ENTITYSPORT_API_TOKEN}`
@@ -357,7 +369,7 @@ exports.fetchPlayersByMatch = async (req, res) => {
                 playerDetailsMap[player.pid] = {
                     fantasy_player_rating: player.fantasy_player_rating || null,
                     nationality: player.nationality || null,
-                    short_name: player.short_name || null
+                    short_name: player.short_name || null,
                 };
             });
 
@@ -401,10 +413,14 @@ exports.fetchPlayersByMatch = async (req, res) => {
 
             await Player.bulkWrite(bulkOps);
 
+            // Fetch the updated players from the database to include Mongoose `_id`
+            const updatedPlayers = await Player.find({ match_id: matchId });
+
             return res.status(200).json({
                 success: true,
                 message: "Players fetched and saved successfully.",
-                players: allPlayers,
+                players: updatedPlayers,
+                matchDetails
             });
         } else {
             return res.status(404).json({
@@ -422,26 +438,77 @@ exports.fetchPlayersByMatch = async (req, res) => {
     }
 };
 
+// exports.createUserTeam = async (req, res) => {
+//     try {
+//         const { matchId } = req.body;
+//         const userId = req.user?.userId;
+
+//         if (!matchId || !userId) {
+//             return res.status(400).json({ error: 'matchId isrequired' });
+//         }
+
+//         const teamUniqueCode = uuidv4();
+
+//         // Log the generated code (for debugging purposes)
+//         console.log('Generated teamUniqueCode:', teamUniqueCode);
+
+//         // Create the team
+//         const team = new UserTeam({
+//             userId,
+//             matchId,
+//             teamUniqueCode,
+//         });
+//         await team.save();
+
+//         res.status(201).json({ message: 'Team created successfully', team });
+//     } catch (error) {
+//         console.error('Error creating team:', error);
+//         res.status(500).json({ error: 'Internal server error' });
+//     }
+// };
+
 exports.createUserTeam = async (req, res) => {
     try {
-        const { matchId } = req.body;
+        const { matchId, players, captain, viceCaptain } = req.body;
         const userId = req.user?.userId;
 
-        if (!matchId || !userId) {
-            return res.status(400).json({ error: 'matchId isrequired' });
+        if (!matchId || !players || !captain || !viceCaptain) {
+            return res.status(404).json({ message: "matchID, players, captain, and viceCaptain are required" });
         }
 
-        const teamUniqueCode = uuidv4();
+        if (!Array.isArray(players) || players.length !== 11) {
+            return res.status(400).json({ error: 'You must select exactly 11 players' });
+        }
 
-        // Log the generated code (for debugging purposes)
-        console.log('Generated teamUniqueCode:', teamUniqueCode);
+        if (!players.includes(captain)) {
+            return res.status(400).json({ error: 'Captain must be one of the selected players' });
+        }
+        if (!players.includes(viceCaptain)) {
+            return res.status(400).json({ error: 'Vice-captain must be one of the selected players' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const lastFourDigits = user.phoneNumber.slice(-4);
+        const teamCount = await UserTeam.countDocuments({ userId, matchId });
+        const teamName = `${user.userName ? user.userName : lastFourDigits}(T${teamCount + 1})`;
+
+        // Map players with isCaptain and isViceCaptain flags
+        const formattedPlayers = players.map(playerId => ({
+            player: playerId,
+            isCaptain: playerId === captain,
+            isViceCaptain: playerId === viceCaptain
+        }));
 
         // Create the team
         const team = new UserTeam({
             userId,
             matchId,
-            teamUniqueCode,
+            teamName,
+            players: formattedPlayers
         });
+
         await team.save();
 
         res.status(201).json({ message: 'Team created successfully', team });
@@ -572,25 +639,25 @@ exports.addOrRemoveOrSavePlayer = async function (req, res) {
 
 exports.getTeamPreview = async function (req, res) {
     try {
-        const { teamUniqueCode } = req.body;
+        const { teamId } = req.body;
 
-        if (!teamUniqueCode) {
-            return res.status(400).json({ message: "Please provide team unique code" });
+        if (!teamId) {
+            return res.status(400).json({ message: "Please provide team id" });
         }
 
-        // Find the team and populate players
-        const teamPreview = await UserTeam.findOne({ teamUniqueCode })
-            .populate('players');
+        // Find the team and populate nested 'player' field
+        const teamPreview = await UserTeam.findById({ _id: teamId })
+            .populate('players.player'); // Nested population
 
         if (!teamPreview) {
             return res.status(404).json({ message: "Team not found" });
         }
 
         // Add isCaptain and isViceCaptain flags
-        const playersWithRoles = teamPreview.players.map(player => ({
-            ...player.toObject(), // Convert Mongoose document to plain object
-            isCaptain: player._id.toString() === teamPreview.captain?.toString(),
-            isViceCaptain: player._id.toString() === teamPreview.viceCaptain?.toString(),
+        const playersWithRoles = teamPreview.players.map(playerObj => ({
+            ...playerObj.player.toObject(), // Convert player document to plain object
+            isCaptain: playerObj.isCaptain,
+            isViceCaptain: playerObj.isViceCaptain,
         }));
 
         // Return the modified team preview
@@ -626,37 +693,31 @@ exports.getAllTeams = async function (req, res) {
     try {
         const { matchId } = req.params;
 
-        // Validate if matchId is provided
         if (!matchId) {
             return res.status(400).json({ message: "Match ID is required" });
         }
 
-        // Find teams where isCompleted is true and matchId matches
-        const teams = await UserTeam.find({ isCompleted: true, matchId: matchId }).populate('players');
+        // Find teams and populate the nested 'player' field
+        const teams = await UserTeam.find({ matchId: matchId }).populate('players.player');
 
-        // Check if no teams are found
         if (!teams || teams.length === 0) {
-            return res.status(404).json({ message: `No completed teams found for match ID: ${matchId}` });
+            return res.status(404).json({ message: `No completed teams found for this match` });
         }
 
-        // Initialize stats
-        const countryStats = {}; // To track players per country
-        const roleStats = { batsmen: 0, bowlers: 0, allRounders: 0, wicketKeepers: 0 }; // To track roles
+        const teamsWithStats = teams.map(team => {
+            const countryStats = {};
+            const roleStats = { batsmen: 0, bowlers: 0, allRounders: 0, wicketKeepers: 0 };
 
-        // Loop through all teams
-        teams.forEach(team => {
-            team.players.forEach(player => {
-                const country = player.country || player.nationality || "Unknown";
+            // Iterate over the players array
+            team.players.forEach(playerObj => {
+                const player = playerObj.player; // Access the populated player object
+                const country = player?.country || player?.nationality || "Unknown";
 
                 // Update country stats
-                if (!countryStats[country]) {
-                    countryStats[country] = 1;
-                } else {
-                    countryStats[country]++;
-                }
+                countryStats[country] = (countryStats[country] || 0) + 1;
 
                 // Update role stats
-                switch (player.role.toLowerCase()) {
+                switch (player?.role?.toLowerCase()) {
                     case "bat":
                         roleStats.batsmen++;
                         break;
@@ -673,23 +734,27 @@ exports.getAllTeams = async function (req, res) {
                         break;
                 }
             });
+
+            // Add stats to the team object
+            return {
+                ...team.toObject(),
+                stats: {
+                    countryStats,
+                    roleStats
+                }
+            };
         });
 
-        // Return the teams and the stats
+        // Return teams with embedded stats
         return res.status(200).json({
             message: "Completed teams fetched successfully",
-            teams,
-            stats: {
-                countryStats,
-                roleStats,
-            },
+            teams: teamsWithStats
         });
     } catch (error) {
         console.error("Error fetching completed teams:", error);
         return res.status(500).json({ message: "Internal server error" });
     }
 };
-
 
 exports.createRazorpayOrder = async function (req, res) {
     try {
@@ -794,7 +859,6 @@ exports.joinContest = async function (req, res) {
         });
     }
 };
-
 
 exports.getMatches = async function (req, res) {
     try {
