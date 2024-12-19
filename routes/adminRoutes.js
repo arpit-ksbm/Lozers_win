@@ -18,5 +18,6 @@ router.get('/get_withdrawl_request', transactionController.getAllWithdrawRequest
 router.get('/get_withdrawl_history', transactionController.getAllWithdrawHistory);
 router.post('/add_rank_winning', adminController.addRankAndWinningByContestId);
 router.get('/get_dashboard', adminController.adminDashboard);
+router.get('/get_points', adminController.getPoints);
 
 module.exports = router;
