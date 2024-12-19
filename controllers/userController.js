@@ -792,10 +792,10 @@ exports.createRazorpayOrder = async function (req, res) {
 
 exports.joinContest = async function (req, res) {
     try {
-        const { contestId, teamUniqueCodes, matchId } = req.body; // Include matchId
+        const { contestId, teamId, matchId } = req.body; // Include matchId
 
-        if (!contestId || !teamUniqueCodes || !Array.isArray(teamUniqueCodes) || teamUniqueCodes.length === 0 || !matchId) {
-            return res.status(400).json({ error: 'Contest ID, matchId, and at least one teamUniqueCode are required.' });
+        if (!contestId || !teamId || !matchId) {
+            return res.status(400).json({ error: 'Contest ID, matchId, and teamId are required.' });
         }
 
         // Fetch the contest details by contestId and matchId
@@ -812,7 +812,7 @@ exports.joinContest = async function (req, res) {
         if (!user) return res.status(404).json({ error: 'User not found.' });
 
         // Calculate total cost for multiple teams
-        const totalCost = contest.entryFee * teamUniqueCodes.length;
+        const totalCost = contest.entryFee * teamId.length;
 
         // Check if the user has enough balance in their wallet
         if (user.walletBalance < totalCost) {
@@ -824,20 +824,13 @@ exports.joinContest = async function (req, res) {
             (participant) => participant.userId.toString() === req.user.userId
         ).map(participant => participant.teamUniqueCode);
 
-        // Check for duplicates
-        const duplicateTeams = teamUniqueCodes.filter(teamCode => existingTeams.includes(teamCode));
-
-        if (duplicateTeams.length > 0) {
-            return res.status(400).json({ error: `You have already joined the contest with team(s): ${duplicateTeams.join(", ")}` });
-        }
-
         // Deduct the wallet amount
         user.walletBalance -= totalCost;
         await user.save();
 
         // Add the user's teams to the participants array
-        teamUniqueCodes.forEach((teamUniqueCode) => {
-            contest.participants.push({ userId: req.user.userId, teamUniqueCode });
+        teamId.forEach((teamId) => {
+            contest.participants.push({ userId: req.user.userId, teamId });
         });
 
         // Update the number of participants left
@@ -849,7 +842,7 @@ exports.joinContest = async function (req, res) {
             message: 'Joined contest successfully', 
             contest, 
             walletBalance: user.walletBalance, 
-            joinedTeams: teamUniqueCodes 
+            joinedTeams: teamId 
         });
     } catch (error) {
         console.error('Error in joinContest API:', error);

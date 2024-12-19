@@ -13,7 +13,7 @@ module.exports = async function dbConnection() {
 
     // After connecting to the DB, call fetchMatches
     await fetchMatches();
-    // await fetchPoints();
+    // await fetchPoints(); 
   } catch (error) {
     console.error("Error connecting to MongoDB:", error.message);
   }

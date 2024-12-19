@@ -519,3 +519,43 @@ exports.getPoints = async function (req, res) {
         console.error("Error in adminDashboard:", error.message);
     }
 }
+
+exports.updatePoints = async function (req, res) {
+  try {
+    const pointsId = '67640f623dab3ae42c8608bf'; // Fixed ID of the points object
+    const updates = req.body; // Expecting updates in the request body
+
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid data format. Please provide an object with updates.",
+      });
+    }
+
+    // Update the points object
+    const updatedPoints = await Points.findByIdAndUpdate(
+      pointsId,
+      { $set: updates }, // Use $set to apply the updates
+      { new: true, runValidators: true } // Return the updated document and validate updates
+    );
+
+    if (!updatedPoints) {
+      return res.status(404).json({
+        success: false,
+        message: "Points object not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Points updated successfully.",
+      points: updatedPoints,
+    });
+  } catch (error) {
+    console.error("Error in updatePoints:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while updating points.",
+    });
+  }
+};
