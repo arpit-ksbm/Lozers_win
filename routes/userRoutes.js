@@ -3,6 +3,7 @@ const router = express.Router();
 const userController = require('../controllers/userController')
 const transactionController = require('../controllers/transactionControlller')
 const authenticateToken = require('../middleware/userAuth');
+const calculateController = require('../controllers/calculateController')
 
 
 router.post('/user_login_register', userController.userLogin);
@@ -24,6 +25,7 @@ router.post('/withdrawl_request', transactionController.createWithdrawalRequest)
 router.get('/transaction_history', transactionController.getTransactionHistory);
 router.get('/get_rank_winning/:contestId', userController.getRankAndWinning);
 router.get('/get_leaderboard/:contestId', userController.getLeaderboard);
+router.post('/calculate_team_score', calculateController.calculateTeamScore);
 // router.get('/get_preview/:matchId', userController.previewUserTeam);
 
 module.exports = router;

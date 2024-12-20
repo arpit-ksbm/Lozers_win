@@ -519,11 +519,10 @@ exports.getPoints = async function (req, res) {
         console.error("Error in adminDashboard:", error.message);
     }
 }
-
 exports.updatePoints = async function (req, res) {
   try {
-    const pointsId = '67640f623dab3ae42c8608bf'; // Fixed ID of the points object
-    const updates = req.body; // Expecting updates in the request body
+    const pointsId = '67640f623dab3ae42c8608bf'; // Replace with dynamic ID if needed
+    const updates = req.body;
 
     if (!updates || typeof updates !== 'object') {
       return res.status(400).json({
@@ -532,10 +531,19 @@ exports.updatePoints = async function (req, res) {
       });
     }
 
+    // Build the $set object dynamically for partial updates
+    const updateFields = {};
+    for (const [key, value] of Object.entries(updates)) {
+      for (const [subKey, subValue] of Object.entries(value)) {
+        updateFields[`${key}.${subKey}`] = subValue;
+      }
+    }
+    console.log(updateFields);
+
     // Update the points object
     const updatedPoints = await Points.findByIdAndUpdate(
       pointsId,
-      { $set: updates }, // Use $set to apply the updates
+      { $set: updateFields }, // Apply partial updates
       { new: true, runValidators: true } // Return the updated document and validate updates
     );
 
@@ -559,3 +567,4 @@ exports.updatePoints = async function (req, res) {
     });
   }
 };
+
