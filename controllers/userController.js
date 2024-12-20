@@ -856,7 +856,7 @@ exports.joinContest = async function (req, res) {
 exports.getMatches = async function (req, res) {
     try {
         // Fetch all matches from the database
-        const matches = await Match.find();
+        const matches = await Match.find({status:1});
 
         // If no matches are found
         if (matches.length === 0) {

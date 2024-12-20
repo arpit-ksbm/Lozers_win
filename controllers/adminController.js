@@ -538,7 +538,6 @@ exports.updatePoints = async function (req, res) {
         updateFields[`${key}.${subKey}`] = subValue;
       }
     }
-    console.log(updateFields);
 
     // Update the points object
     const updatedPoints = await Points.findByIdAndUpdate(

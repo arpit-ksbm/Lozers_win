@@ -11,7 +11,7 @@ const fetchMatches = async () => {
 
     // Fetch match data from the API
     const { data } = await axios.get(
-      "https://rest.entitysport.com/v2/matches/?status=2&token=ec471071441bb2ac538a0ff901abd249"
+      "https://rest.entitysport.com/v2/matches/?status=1&token=cc8b2f3c9eba434f4a524a830e12f8d2"
     );
 
     if (data.status === "ok" && data.response.items) {
